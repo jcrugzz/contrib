@@ -50,7 +50,7 @@ const (
 	resyncPeriod             = 10 * time.Second
 	lbApiPort                = 8081
 	lbAlgorithmKey           = "serviceloadbalancer/lb.algorithm"
-	lbHostKey                = "serviceloadbalancer/lb.host"
+  lbHostKey                = "serviceloadbalancer/lb.hosts"
 	lbSslTerm                = "serviceloadbalancer/lb.sslTerm"
 	lbAclMatch               = "serviceloadbalancer/lb.aclMatch"
 	lbCookieStickySessionKey = "serviceloadbalancer/lb.cookie-sticky-session"
@@ -228,7 +228,7 @@ func (s serviceAnnotations) getAlgorithm() (string, bool) {
 	return val, ok
 }
 
-func (s serviceAnnotations) getHost() (string, bool) {
+func (s serviceAnnotations) getHosts() (string, bool) {
 	val, ok := s[lbHostKey]
 	return val, ok
 }
@@ -436,17 +436,35 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 					sName, servicePort)
 				continue
 			}
+
+      var svcs []service;
+
 			newSvc := service{
 				Name:        getServiceNameForLBRule(&s, servicePort.Port),
 				Ep:          ep,
 				BackendPort: getTargetPort(&servicePort),
 			}
 
-			if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getHost(); ok {
-				newSvc.Host = val
+      append(svcs, newSvc);
+
+			if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getHosts(); ok {
+        if len(val) > len(svcs) {
+          for i := len(svcs); < len(val); i++ {
+            n := service{
+              Name:  getServiceNameforLBRule(%s, servicePort.Port),
+              Ep: ep,
+              BackendPort: getTargetPort(&servicePort)
+            }
+            append(svcs, n);
+          }
+        }
+        for i := 0; i < len(val); i++ {
+          svcs[i].Host = val[i];
+        }
 			}
 
 			if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getAlgorithm(); ok {
+        var algorithm string;
 				for _, current := range supportedAlgorithms {
 					if val == current {
 						newSvc.Algorithm = val
