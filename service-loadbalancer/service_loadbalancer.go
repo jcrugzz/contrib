@@ -402,9 +402,9 @@ func (lbc *loadBalancerController) getEndpoints(
 // - default ns should be accessible without /ns/name (when we have /ns support)
 func getServiceNameForLBRule(s *api.Service, servicePort int) string {
 	if servicePort == 80 {
-		return s.Name
+		return fmt.Sprintf("%v-%v", s.Namespace, s.Name);
 	}
-	return fmt.Sprintf("%v:%v", s.Name, servicePort)
+	return fmt.Sprintf("%v-%v:%v", s.Namespace, s.Name, servicePort)
 }
 
 // getServices returns a list of services and their endpoints.
@@ -419,8 +419,10 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 		for _, servicePort := range s.Spec.Ports {
 			// TODO: headless services?
 			sName := s.Name
+			glog.Infof("service port %+v", servicePort.Port);
 			if servicePort.Protocol == api.ProtocolUDP ||
-				(lbc.targetService != "" && lbc.targetService != sName) {
+				(lbc.targetService != "" && lbc.targetService != sName) ||
+				+servicePort.Port == 53 {
 				glog.Infof("Ignoring %v: %+v", sName, servicePort)
 				continue
 			}
@@ -457,12 +459,6 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 				newSvc.Algorithm = lbc.cfg.lbDefAlgorithm
 			}
 
-			// By default sticky session is disabled
-			newSvc.SessionAffinity = false
-			if s.Spec.SessionAffinity != "" {
-				newSvc.SessionAffinity = true
-			}
-
 			// By default sslTerm is disabled
 			newSvc.SslTerm = false
 			if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getSslTerm(); ok {
@@ -480,13 +476,6 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 				newSvc.FrontendPort = servicePort.Port
 				tcpSvc = append(tcpSvc, newSvc)
 			} else {
-				if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getCookieStickySession(); ok {
-					b, err := strconv.ParseBool(val)
-					if err == nil {
-						newSvc.CookieStickySession = b
-					}
-				}
-
 				newSvc.FrontendPort = lbc.httpPort
 				if newSvc.SslTerm == true {
 					httpsTermSvc = append(httpsTermSvc, newSvc)

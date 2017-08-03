@@ -13,7 +13,7 @@
 # limitations under the License.
 
 
-FROM gcr.io/google_containers/haproxy:0.3
+FROM gcr.io/google_containers/haproxy:0.4
 MAINTAINER Prashanth B <beeps@google.com>
 
 RUN mkdir -p /etc/haproxy/errors /var/state/haproxy
@@ -21,8 +21,10 @@ RUN for ERROR_CODE in 400 403 404 408 500 502 503 504;do curl -sSL -o /etc/hapro
 	https://raw.githubusercontent.com/haproxy/haproxy-1.5/master/examples/errorfiles/$ERROR_CODE.http;done
 
 # https://blog.phusion.nl/2015/01/20/docker-and-the-pid-1-zombie-reaping-problem
-RUN curl -o /sbin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.0.0/dumb-init_1.0.0_amd64 && \
-  chmod +x /sbin/dumb-init
+RUN curl -L -o /sbin/dumb-init https://github.com/Yelp/dumb-init/releases/download/v1.2.0/dumb-init_1.2.0_amd64 \
+  && chmod +x /sbin/dumb-init
+
+RUN apt-get update -y && apt-get install -y util-linux procps bash vim
 
 ENTRYPOINT ["dumb-init", "/service_loadbalancer"]
 
