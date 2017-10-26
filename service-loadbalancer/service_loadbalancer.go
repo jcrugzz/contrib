@@ -30,7 +30,6 @@ import (
 	"strings"
 	"text/template"
 	"time"
-
 	"github.com/golang/glog"
 	flag "github.com/spf13/pflag"
 	"k8s.io/kubernetes/pkg/api"
@@ -51,6 +50,7 @@ const (
 	lbApiPort                = 8081
 	lbAlgorithmKey           = "serviceloadbalancer/lb.algorithm"
 	lbHostKey                = "serviceloadbalancer/lb.host"
+	lbHostKeySecondary       = "serviceloadbalancer/lb.host2"
 	lbSslTerm                = "serviceloadbalancer/lb.sslTerm"
 	lbAclMatch               = "serviceloadbalancer/lb.aclMatch"
 	lbCookieStickySessionKey = "serviceloadbalancer/lb.cookie-sticky-session"
@@ -233,6 +233,10 @@ func (s serviceAnnotations) getHost() (string, bool) {
 	return val, ok
 }
 
+func (s serviceAnnotations) getHostSecondary() (string, bool) {
+	val, ok := s[lbHostKeySecondary]
+	return val, ok
+}
 func (s serviceAnnotations) getCookieStickySession() (string, bool) {
 	val, ok := s[lbCookieStickySessionKey]
 	return val, ok
@@ -472,15 +476,37 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 				newSvc.AclMatch = val
 			}
 
+			hasSecondSvc := false
+			secondSvc := service{
+				Name: fmt.Sprintf("%v-secondary", newSvc.Name),
+				Ep: newSvc.Ep,
+				BackendPort: newSvc.BackendPort,
+				Algorithm: newSvc.Algorithm,
+				SslTerm: newSvc.SslTerm,
+				AclMatch: newSvc.AclMatch,
+			}
+			if val, ok := serviceAnnotations(s.ObjectMeta.Annotations).getHostSecondary(); ok {
+				hasSecondSvc = true
+				secondSvc.Host = val
+			}
 			if port, ok := lbc.tcpServices[sName]; ok && port == servicePort.Port {
 				newSvc.FrontendPort = servicePort.Port
 				tcpSvc = append(tcpSvc, newSvc)
+				if hasSecondSvc == true {
+					tcpSvc = append(tcpSvc, secondSvc)
+				}
 			} else {
 				newSvc.FrontendPort = lbc.httpPort
 				if newSvc.SslTerm == true {
 					httpsTermSvc = append(httpsTermSvc, newSvc)
+					if hasSecondSvc == true {
+						httpsTermSvc = append(httpsTermSvc, secondSvc)
+					}
 				} else {
 					httpSvc = append(httpSvc, newSvc)
+					if hasSecondSvc == true {
+						httpSvc = append(httpSvc, secondSvc)
+					}
 				}
 			}
 			glog.Infof("Found service: %+v", newSvc)
