@@ -420,6 +420,10 @@ func (lbc *loadBalancerController) getServices() (httpSvc []service, httpsTermSv
 			glog.Infof("Ignoring service %v, it already has a loadbalancer", s.Name)
 			continue
 		}
+		if s.Namespace == "kube-system" {
+			glog.Infof("Ignoring service %v, ignoring kube-system services", s.Name)
+			continue
+		}
 		for _, servicePort := range s.Spec.Ports {
 			// TODO: headless services?
 			sName := s.Name
