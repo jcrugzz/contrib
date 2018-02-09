@@ -553,6 +553,12 @@ func (lbc *loadBalancerController) worker() {
 	for {
 		key, _ := lbc.queue.Get()
 		glog.Infof("Sync triggered by service %v", key)
+
+		if str, ok := key.(string); ok && strings.Contains(str, "kube-system") {
+			glog.Infof("Ignoring kube-system trigger %v", key)
+			lbc.queue.Done(key)
+			continue
+		}
 		if err := lbc.sync(false); err != nil {
 			glog.Warningf("Requeuing %v because of error: %v", key, err)
 			lbc.queue.Add(key)
